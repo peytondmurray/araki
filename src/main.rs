@@ -1,40 +1,44 @@
 use clap::{Parser, Subcommand};
 
 /// Manage and share environments
-#[derive(Parser)]
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
 struct Cli {
+    // Manage environments
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 enum Commands {
     // Initialize an environment
     Init {
         // name of the environment
+        #[arg(help="Name of the environment")]
         name: String,
     },
     // Activate an environment
     Activate {
         // name of the environment
+        #[arg(help="Name of the environment")]
         name: String,
     },
     // Add a package to an environment
     Add {
         // name of the environment, defaults to the current active environment
-        #[arg(short, long)]
+        #[arg(short, long, help="Name of target environment. Defaults to the current active environment if available")]
         name: Option<String>,
         // names of the packages
-        #[arg(short, long, required = true, value_name = "SPEC")]
+        #[arg(short, long, required = true, value_name = "SPEC", help="Packages to add")]
         specs: Vec<String>,
     },
     // Save a checkpoint for the environment
     Save {
         // name of the environment, defaults to the current active environment
-        #[arg(short, long)]
+        #[arg(short, long, help="Name of target environment. Defaults to the current active environment if available")]
         name: Option<String>,
         // name of the tag
-        #[arg(short, long, required = true)]
+        #[arg(short, long, required = true, help="Name of the tag")]
         tag: Vec<String>, 
     },
     // List all available environments
@@ -44,19 +48,22 @@ enum Commands {
     // Install a tag into an environment
     Install {
         // name of the environment, defaults to the current active environment
-        #[arg(short, long)]
+        #[arg(short, long, help="Name of target environment. Defaults to the current active environment if available")]
         name: Option<String>,
         // name of the tag to install
+        #[arg(help="Name of the tag")]
         tag: String
     },
     // Push environment to a remote repo
     Push {
         // name of the tag to push
+        #[arg(help="Name of the tag")]
         tag: String
     },
     // Pull environment from a remote repo
     Pull {
         // name of the tag to push
+        #[arg(help="Name of the tag")]
         tag: String
     },
 }
