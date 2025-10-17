@@ -18,3 +18,21 @@ Or, use pixi to run `cargo run`
 ```
 $ pixi run start -- -h
 ```
+
+## Try it out
+
+Initialize a project
+```
+$ akari init myproj
+```
+
+Activate that environment
+```
+$ eval "$(akari activate myproj)"
+```
+
+From this point, users can use pixi like they normally would. For example, add python and numpy as a dependency to the project.
+
+```
+$ pixi add python numpy
+```
