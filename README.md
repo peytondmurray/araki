@@ -44,3 +44,10 @@ Available envs:
 * myproj
 * projmy
 ```
+
+##  Next steps
+* allow users to deactivate an environment `akari deactivate`
+  * should identify what the currently active environment is
+  * then unset all the environment variables
+  * clean up the activation script
+* sort out how saving/checkpointing an environment should work
