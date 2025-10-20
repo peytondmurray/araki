@@ -4,6 +4,7 @@ use crate::cli::activate;
 use crate::cli::deactivate;
 use crate::cli::envs;
 use crate::cli::init;
+use crate::cli::list;
 use crate::cli::tag;
 
 pub mod cli;
@@ -35,6 +36,9 @@ pub enum Command {
 
     // Save the current version of the environment
     Tag(tag::Args),
+
+    // List available tags
+    List(list::Args),
 //     // Save a checkpoint for the environment
 //     Save {
 //         // name of the environment, defaults to the current active environment
@@ -84,6 +88,7 @@ pub fn main() {
         Command::Deactivate(cmd) => deactivate::execute(cmd),
         Command::Envs(cmd) => envs::execute(cmd),
         Command::Init(cmd) => init::execute(cmd),
+        Command::List(cmd) => list::execute(cmd),
         Command::Tag(cmd) => tag::execute(cmd),
     }
 }

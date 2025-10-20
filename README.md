@@ -37,9 +37,14 @@ From this point, users can use pixi like they normally would. For example, add p
 $ pixi add python numpy
 ```
 
-Save a checkpoint by running the `save` command
+Save a checkpoint by running the `tag` command
 ```
 $ akari tag v1
+```
+
+List available tags
+```
+$ akari list
 ```
 
 Deactivate the environment
