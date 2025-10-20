@@ -11,7 +11,7 @@ pub struct Args {
     // name: Option<String>,
     
     // name of the tag
-    #[arg(short, long, required = true, help="Name of the tag")]
+    #[arg(help="Name of the tag")]
     tag: String, 
  }
 
@@ -26,6 +26,8 @@ pub fn execute(args: Args) {
 
     let repo = Repository::open(&project_env_dir).expect("Failed to open repository");
     let mut index = repo.index().expect("Failed to get index");
+    
+    // Add files
     index.add_path(Path::new("pixi.toml")).expect("unable to add pixi.toml");
     index.add_path(Path::new("pixi.lock")).expect("unable to add pixi.lock");
     index.write().expect("Failed to write index");
@@ -36,7 +38,7 @@ pub fn execute(args: Args) {
     let head = repo.head().expect("Failed to get HEAD");
     let parent_commit = repo.find_commit(head.target().expect("Failed to get HEAD target OID")).expect("Failed to find parent commit");
 
-    // TODO: should this create a tag?
+    // Commit change
     repo.commit(
         Some("HEAD"), // Update the HEAD reference
         &signature,    // Author
@@ -45,4 +47,17 @@ pub fn execute(args: Args) {
         &tree,         // Tree containing the staged changes
         &[&parent_commit], // Parent commit(s)
     ).expect("Failed to create commit");
+
+    // Create tag
+    // Get the OID of the commit to tag (e.g., HEAD)
+    let head =  repo.revparse_single("HEAD").expect("unable to find HEAD");
+
+    let tag_message = format!("akari environment tag: {}", args.tag);
+    repo.tag(
+        &args.tag,
+        &head,
+        &signature,
+        &tag_message,
+        false // Set to false for an annotated tag, true for a lightweight tag
+    ).expect("Unable to tag");
 }
