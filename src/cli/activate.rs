@@ -38,5 +38,19 @@ pub fn execute(args: Args) {
     }
 
     let activation_stdout = String::from_utf8_lossy(&activation_output.stdout);
-    println!("{}", activation_stdout)
+    println!("{}", activation_stdout);
+
+    println!(
+        "__akari_git_prompt () {{ \
+           GIT_OPTIONAL_LOCKS=0 command git -C ${{PIXI_PROJECT_ROOT}} \"$@\" \
+        }}"
+    );
+    println!(
+        "__akari_env_checkout() {{ \
+            ref=$(__akari_git_prompt describe --tags --exact-match HEAD 2> /dev/null)  || \
+            ref=$(__akari_git_prompt rev-parse --short HEAD 2> /dev/null); \
+            echo ${{ref}}
+        }}"
+    );
+    println!("export prompt=\"({}:\\$(__akari_env_checkout)) $prompt\"", args.name);
 }

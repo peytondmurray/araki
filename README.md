@@ -34,12 +34,12 @@ $ eval "$(akari activate myproj)"
 From this point, users can use pixi like they normally would. For example, add python and numpy as a dependency to the project.
 
 ```
-$ pixi add python numpy
+$ pixi add python=3.13 numpy=2.3
 ```
 
 Save a checkpoint by running the `tag` command
 ```
-$ akari tag v1
+$ akari tag v1 --description "python 3.13 and numpy 2.3"
 ```
 
 List available tags
@@ -47,7 +47,7 @@ List available tags
 $ akari list
 ```
 
-Checkout an older tag from an environment
+Checkout the latest tag (determined from the git tree) of an environment
 ```
 $ akari checkout latest
 ```
@@ -66,5 +66,4 @@ Available envs:
 ```
 
 ##  Next steps
-* Add shell prefix so users know what environment they are in
 * Rethink how activation/deactivation of environments should work
