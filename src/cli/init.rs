@@ -1,14 +1,20 @@
 use clap::Parser;
+use git2::Repository;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 use crate::cli::common;
 
 #[derive(Parser, Debug, Default)]
 pub struct Args {
-    // name of the environment
-    #[arg(help="Name of the environment")]
+    /// Name of the environment
+    #[arg()]
     name: String,
+
+    /// Remote source to pull environment from
+    #[arg(long)]
+    source: Option<String>
 }
 
 pub fn execute(args: Args){
@@ -29,10 +35,41 @@ pub fn execute(args: Args){
     }
     let _ = fs::create_dir_all(&project_env_dir);
 
+    if let Some(src) = args.source {
+        initialize_remote_git_project(src, &project_env_dir);
+    } else {
+        initialize_empty_project(&project_env_dir);
+    }
+}
+
+pub fn initialize_remote_git_project(source: String, project_env_dir: &Path) {
+    println!("Pulling from remote source '{}'", source);
+    // TODO: validate source
+    match Repository::clone(&source, project_env_dir) {
+        Ok(repo) => repo,
+        Err(e) => panic!(
+            "Failed to clone '{}', error: {}", source, e
+        ), // TODO: better error checking, surely this should not panic
+    };
+
+    // TODO: validate that the project has a valid project structure.
+    // That means it has a
+    //  * pixi.toml or pyproject.toml with pixi config
+    //  * pixi.lock
+
+    // Install the pixi project
+    let _ = Command::new("pixi")
+        .arg("install")
+        .current_dir(project_env_dir)
+        .output()
+        .expect("Failed to execute command");
+}
+
+pub fn initialize_empty_project(project_env_dir: &Path) {
     // Initialize the pixi project
     let _ = Command::new("pixi")
         .arg("init")
-        .current_dir(&project_env_dir)
+        .current_dir(project_env_dir)
         .output()
         .expect("Failed to execute command");
 
@@ -40,14 +77,14 @@ pub fn execute(args: Args){
     // Initialize the git repo
     let _ = Command::new("git")
         .arg("init")
-        .current_dir(&project_env_dir)
+        .current_dir(project_env_dir)
         .output()
         .expect("Failed to execute command");
 
     // Install the pixi project
     let _ = Command::new("pixi")
         .arg("install")
-        .current_dir(&project_env_dir)
+        .current_dir(project_env_dir)
         .output()
         .expect("Failed to execute command");
 
@@ -55,13 +92,13 @@ pub fn execute(args: Args){
     let _ = Command::new("git")
         .arg("add") 
         .arg(".")
-        .current_dir(&project_env_dir)
+        .current_dir(project_env_dir)
         .output()
         .expect("Failed to execute command");
     let _ = Command::new("git")
         .arg("commit")
         .arg("-m \"Initial commit\"")
-        .current_dir(&project_env_dir)
+        .current_dir(project_env_dir)
         .output()
         .expect("Failed to execute command");
 }
