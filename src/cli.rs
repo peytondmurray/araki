@@ -5,4 +5,5 @@ pub mod deactivate;
 pub mod envs;
 pub mod init;
 pub mod list;
+pub mod push;
 pub mod tag;

@@ -6,6 +6,7 @@ use crate::cli::deactivate;
 use crate::cli::envs;
 use crate::cli::init;
 use crate::cli::list;
+use crate::cli::push;
 use crate::cli::tag;
 
 pub mod cli;
@@ -36,27 +37,15 @@ pub enum Command {
     /// Initialize an environment
     Init(init::Args),
 
-    /// Save the current version of the environment
-    Tag(tag::Args),
-
     /// List available tags
     List(list::Args),
 
-//     // Install a tag into an environment
-//     Install {
-//         // name of the environment, defaults to the current active environment
-//         #[arg(short, long, help="Name of target environment. Defaults to the current active environment if available")]
-//         name: Option<String>,
-//         // name of the tag to install
-//         #[arg(help="Name of the tag")]
-//         tag: String
-//     },
-//     // Push environment to a remote repo
-//     Push {
-//         // name of the tag to push
-//         #[arg(help="Name of the tag")]
-//         tag: String
-//     },
+    /// Push changes to the remote repo
+    Push(push::Args),
+
+    /// Save the current version of the environment
+    Tag(tag::Args),
+
 //     // Pull environment from a remote repo
 //     Pull {
 //         // name of the tag to push
@@ -80,6 +69,7 @@ pub fn main() {
         Command::Envs(cmd) => envs::execute(cmd),
         Command::Init(cmd) => init::execute(cmd),
         Command::List(cmd) => list::execute(cmd),
+        Command::Push(cmd) => push::execute(cmd),
         Command::Tag(cmd) => tag::execute(cmd),
     }
 }
