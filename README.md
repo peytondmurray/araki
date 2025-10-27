@@ -74,10 +74,15 @@ $ akari init abc --source git@github.com:soapy1/test-abc.git
 Push/pull from a remote source
 ```
 $ akari pull
+
+$ akari push v1
 ```
 
+### Use gitea as a remote source
+Provided in this project is a docker compose file that sets up gitea to use a remote source for storing environment definitions. To run gitea, use docker compose
+
 ```
-$ akari push v1
+$ docker compose up -d
 ```
 
 ##  Next steps

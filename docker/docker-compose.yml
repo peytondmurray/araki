@@ -1,0 +1,31 @@
+services:
+  gitea:
+    image: docker.gitea.com/gitea:1.24.6-rootless
+    restart: always
+    volumes:
+      - ./gitea/data:/var/lib/gitea
+      - ./gitea/config:/etc/gitea
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"
+      - "2222:2222"
+    
+  keycloak:
+    container_name: keycloak
+    image: quay.io/keycloak/keycloak:latest
+    restart: always
+    ports:
+      - "8443:8443"
+      - "8090:8080"
+    # volumes:
+    #   - ./keycloak/dev-realm-data:/opt/keycloak/data/import
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: password
+      KC_HOSTNAME: localhost
+      KC_DB: dev-file
+      KC_DB_USERNAME: user
+      KC_DB_PASSWORD: password
+    command:
+      - start-dev
