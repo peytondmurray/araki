@@ -79,6 +79,3 @@ $ araki pull
 ```
 $ araki push v1
 ```
-
-##  Next steps
-* Rethink how activation/deactivation of environments should work
