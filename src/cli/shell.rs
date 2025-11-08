@@ -1,14 +1,33 @@
-use directories::UserDirs;
 use clap::Parser;
-use std::{fmt::{self}, fs::{self, File}, path::Path, str::FromStr};
-use std::io::{Write};
+use directories::UserDirs;
+use std::io::Write;
+use std::path::PathBuf;
+use std::{
+    fmt::{self},
+    fs::{self, File},
+    path::Path,
+    str::FromStr,
+};
 
+#[derive(Parser, Debug)]
+pub struct Args {
+    #[clap(subcommand)]
+    subcommand: ShellSubcommand,
+}
 
 #[derive(Parser, Debug, Default)]
-pub struct Args {
-    /// name of the tag
-    #[arg()]
+pub struct ShellArg {
     shell: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub enum ShellSubcommand {
+    // Initialize the shell configuration (by editing ~/.bashrc etc)
+    Init(ShellArg),
+
+    // Generate the environment changes to be evaluated by the shell so that the araki shims
+    // take precedence over other system binaries
+    Generate(ShellArg),
 }
 
 enum Shell {
@@ -27,7 +46,7 @@ impl FromStr for Shell {
         let result = match s.to_lowercase().as_str() {
             "bash" => Shell::Bash,
             "zsh" => Shell::Zsh,
-            shell => Shell::Unknown(shell.to_string())
+            shell => Shell::Unknown(shell.to_string()),
         };
 
         Ok(result)
@@ -46,16 +65,20 @@ impl fmt::Display for Shell {
 }
 
 impl Shell {
-    fn maybe_write_posix(&self, path: &Path) -> Result<(), String> {
-        const ARAKI_POSIX_CONFIG: &str = "\
-            # Araki configuration\n\
-            eval $(araki shell generate posix)\n\
-        ";
+    /// Update the bash/zsh config file to fiddle the PATH so that araki shims are executed instead
+    /// of `pip`, `uv`, `pixi`, `conda`, etc.
+    ///
+    /// * `path`: Path to the config file to edit
+    fn update_posix_config(&self, path: &Path) -> Result<(), String> {
         let contents = fs::read_to_string(path)
             .map_err(|_| "Could not open {path} to read existing shell config.")?;
 
-        if contents.contains(ARAKI_POSIX_CONFIG) {
-            return Ok(())
+        let araki_posix_config = format!(
+            "# Araki configuration\neval $(araki shell generate {})\n",
+            self
+        );
+        if contents.contains(&araki_posix_config) {
+            return Ok(());
         }
 
         let mut file = File::options()
@@ -63,33 +86,60 @@ impl Shell {
             .open(path)
             .map_err(|_| "Could not open {path} to modify shell config.")?;
 
-        write!(&mut file, "{}", ARAKI_POSIX_CONFIG)
+        write!(&mut file, "{}", &araki_posix_config)
             .map_err(|_| "Unable to write araki shell config to {path}")?;
         Ok(())
     }
 
-    fn update_shell_config(&self) -> Result<(), String> {
+    /// Print the environment variable changes to be evaluated by the shell
+    fn print_env(&self) -> Result<(), String> {
+        match self {
+            Shell::Bash | Shell::Zsh => {
+                print!("PATH=${{HOME}}/araki/bin:$PATH");
+                Ok(())
+            }
+            Shell::Unknown(shell) => {
+                Err(format!("Cannot generate environment updates for {shell}"))
+            }
+        }
+    }
+
+    /// Get the shell configuration file
+    fn get_shell_config(&self) -> Result<PathBuf, String> {
         let home_dir = UserDirs::new()
             .ok_or("Could not get the home directory for the system.")?
             .home_dir()
             .to_path_buf();
-
         match self {
-            Shell::Bash => self.maybe_write_posix(&home_dir.join(".bashrc")),
-            Shell::Zsh => self.maybe_write_posix(&home_dir.join(".zshrc")),
-            Shell::Unknown(shell) => Err(
-                format!(
-                    "{shell} is not one of the supported shells: {}",
-                    Shell::supported_shells().join(", ")
-                )
-            )
+            Shell::Bash => Ok(home_dir.join(".bashrc")),
+            Shell::Zsh => Ok(home_dir.join(".zshrc")),
+            Shell::Unknown(shell) => Err(format!(
+                "Cannot get shell configuration for unknown shell: {shell}"
+            )),
         }
     }
 
+    /// Update the shell configuration file so that araki shims take precedence
+    fn update_shell_config(&self) -> Result<(), String> {
+        let config = self.get_shell_config()?;
+        match self {
+            Shell::Bash => self.update_posix_config(&config),
+            Shell::Zsh => self.update_posix_config(&config),
+            Shell::Unknown(shell) => Err(format!(
+                "{shell} is not one of the supported shells: {}",
+                Shell::supported_shells().join(", ")
+            )),
+        }
+    }
+
+    /// A list of supported shells, for printing in the error message above. Maybe not needed if
+    /// there's a way to iterate over enum types?
     fn supported_shells() -> Vec<&'static str> {
         vec!["bash", "zsh"]
     }
 
+    /// See https://stackoverflow.com/a/78241067/8100451 for reference
+    /// Detect the shell type and return a corresponding Shell instance.
     fn detect() -> Self {
         let system = sysinfo::System::new_with_specifics(
             sysinfo::RefreshKind::default().with_processes(sysinfo::ProcessRefreshKind::default()),
@@ -109,17 +159,33 @@ impl Shell {
 }
 
 pub fn execute(args: Args) {
-    Shell::detect();
-    let shell: Shell = args
-        .shell
-        .map(|name| {
-            name
-                .parse::<Shell>()
-                .unwrap_or_else(|_| unreachable!("All string shell names are valid Shell types"))
-        })
-        .unwrap_or_else(Shell::detect);
+    match args.subcommand {
+        ShellSubcommand::Init(shell_arg) => {
+            let shell: Shell = shell_arg
+                .shell
+                .map(|name| {
+                    name.parse::<Shell>().unwrap_or_else(|_| {
+                        unreachable!("All string shell names are valid Shell types")
+                    })
+                })
+                .unwrap_or_else(Shell::detect);
 
-    let _ = shell.update_shell_config();
+            match shell.update_shell_config() {
+                Ok(_) => println!("Shell configuration updated."),
+                Err(error) => eprintln!("{error}"),
+            };
+        }
+        ShellSubcommand::Generate(shell_arg) => {
+            let shell: Shell = shell_arg
+                .shell
+                .map(|name| {
+                    name.parse::<Shell>().unwrap_or_else(|_| {
+                        unreachable!("All string shell names are valid Shell types")
+                    })
+                })
+                .unwrap_or_else(Shell::detect);
 
-    println!("Shell configuration updated!")
+            let _ = shell.print_env().map_err(|error| eprintln!("{error}"));
+        }
+    }
 }
