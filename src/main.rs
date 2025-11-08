@@ -51,6 +51,9 @@ pub enum Command {
 
     /// Save the current version of the environment
     Tag(tag::Args),
+
+    /// Write config to the shell
+    Shell(shell::Args)
 }
 
 pub fn main() {
