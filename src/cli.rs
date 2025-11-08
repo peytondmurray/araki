@@ -9,3 +9,4 @@ pub mod pull;
 pub mod push;
 pub mod tag;
 pub mod shell;
+pub mod shim;

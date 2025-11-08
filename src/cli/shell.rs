@@ -9,6 +9,8 @@ use std::{
     str::FromStr,
 };
 
+use crate::cli::common::get_default_araki_bin_dir;
+
 #[derive(Parser, Debug)]
 pub struct Args {
     #[clap(subcommand)]
@@ -95,7 +97,7 @@ impl Shell {
     fn print_env(&self) -> Result<(), String> {
         match self {
             Shell::Bash | Shell::Zsh => {
-                print!("PATH=${{HOME}}/araki/bin:$PATH");
+                print!("PATH={}:$PATH", get_default_araki_bin_dir()?.to_string_lossy());
                 Ok(())
             }
             Shell::Unknown(shell) => {

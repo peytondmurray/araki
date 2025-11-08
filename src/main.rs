@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+use crate::cli::shim;
 use crate::cli::activate;
 use crate::cli::checkout;
 use crate::cli::deactivate;
@@ -53,7 +54,11 @@ pub enum Command {
     Tag(tag::Args),
 
     /// Write config to the shell
-    Shell(shell::Args)
+    Shell(shell::Args),
+
+    /// Shim for pip, uv, conda, pixi
+    #[command(hide = true)]
+    Shim(shim::Args)
 }
 
 pub fn main() {
@@ -71,6 +76,7 @@ pub fn main() {
             Command::Push(cmd) => push::execute(cmd),
             Command::Tag(cmd) => tag::execute(cmd),
             Command::Shell(cmd) => shell::execute(cmd),
+            Command::Shim(cmd) => shim::execute(cmd),
         }
     } else {
         std::process::exit(2);
