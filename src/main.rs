@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 
-use crate::cli::shim;
 use crate::cli::activate;
 use crate::cli::checkout;
 use crate::cli::deactivate;
@@ -11,12 +10,13 @@ use crate::cli::pull;
 use crate::cli::push;
 use crate::cli::tag;
 use crate::cli::shell;
+use crate::cli::shim;
 
 pub mod cli;
 
 /// Manage and share environments
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Nebari environment management")]
+#[command(author, version, about = "Manage and version pixi environments")]
 pub struct Cli {
     // Manage environments
     #[command(subcommand)]
