@@ -50,15 +50,16 @@ pub enum Command {
     /// Push changes to the remote repo
     Push(push::Args),
 
-    /// Save the current version of the environment
-    Tag(tag::Args),
-
     /// Write config to the shell
     Shell(shell::Args),
 
-    /// Shim for pip, uv, conda, pixi
+    /// Shim for pip, uv, conda, pixi. Meant to be called from shims only, to signal to araki
+    /// that the user is attempting to use an unsupported env management tool
     #[command(hide = true)]
-    Shim(shim::Args)
+    Shim(shim::Args),
+
+    /// Save the current version of the environment
+    Tag(tag::Args),
 }
 
 pub fn main() {
@@ -74,9 +75,9 @@ pub fn main() {
             Command::List(cmd) => list::execute(cmd),
             Command::Pull(cmd) => pull::execute(cmd),
             Command::Push(cmd) => push::execute(cmd),
-            Command::Tag(cmd) => tag::execute(cmd),
             Command::Shell(cmd) => shell::execute(cmd),
             Command::Shim(cmd) => shim::execute(cmd),
+            Command::Tag(cmd) => tag::execute(cmd),
         }
     } else {
         std::process::exit(2);

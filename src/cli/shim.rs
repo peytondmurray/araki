@@ -21,7 +21,7 @@ fn strip_araki_shim_path(path: &str) -> Result<String, String> {
     Ok(
         path
             .split(":")
-            .skip_while(|item| **item == araki_bin_dir)
+            .skip_while(|item| **item == araki_bin_dir.to_string_lossy())
             .collect::<Vec<&str>>()
             .join(":")
     )

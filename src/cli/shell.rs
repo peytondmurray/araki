@@ -26,11 +26,11 @@ pub struct ShellArg {
 
 #[derive(Parser, Debug)]
 pub enum ShellSubcommand {
-    // Initialize the shell configuration (by editing ~/.bashrc etc)
+    /// Initialize the shell configuration (by editing ~/.bashrc etc)
     Init(ShellArg),
 
-    // Generate the environment changes to be evaluated by the shell so that the araki shims
-    // take precedence over other system binaries
+    /// Generate the environment changes to be evaluated by the shell so that the araki shims
+    /// take precedence over other system binaries
     Generate(ShellArg),
 }
 
