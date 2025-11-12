@@ -3,10 +3,10 @@ use std::env;
 use git2::{Cred, PushOptions, RemoteCallbacks, Repository};
 
 #[derive(Parser, Debug, Default)]
-pub struct Args { 
+pub struct Args {
     /// name of the tag
     #[arg()]
-    tag: String, 
+    tag: String,
 }
 
 pub fn execute(args: Args) {
@@ -31,7 +31,7 @@ pub fn execute(args: Args) {
 
     let mut push_opts = PushOptions::new();
     push_opts.remote_callbacks(callbacks);
-    
+
     // Push changes
     remote.push(&["refs/heads/main:refs/heads/main"],  Some(&mut push_opts))
         .expect("Unable to push changes");

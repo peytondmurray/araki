@@ -27,6 +27,7 @@ pub fn execute(args: Args) {
 
     // Generate the activation script
     let activation_output = Command::new("pixi")
+        .env("ARAKI_OVERRIDE_SHIM", "1")
         .arg("shell-hook")
         .arg("--change-ps1")
         .arg("false")
