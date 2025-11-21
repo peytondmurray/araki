@@ -1,6 +1,7 @@
 use directories::UserDirs;
 use git2::build::RepoBuilder;
 use git2::{Cred, FetchOptions, RemoteCallbacks};
+use std::fmt::Display;
 use std::fs;
 use std::io::{Error, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -144,5 +145,57 @@ fn copy_fs_obj(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
     } else {
         let _ = fs::copy(&from, &to.join(&name));
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LockSpec {
+    lockfile: PathBuf,
+    specfile: PathBuf,
+}
+
+impl Display for LockSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(Lockfile: {:?}, Specfile: {:?})", self.lockfile, self.specfile)
+    }
+}
+
+impl LockSpec {
+    pub fn hardlink_to(&self, to: &Path) -> Result<(), std::io::Error> {
+        fs::create_dir_all(to)?;
+        fs::hard_link(&self.lockfile, to.join("pixi.lock"))?;
+        fs::hard_link(&self.specfile, to.join("pixi.toml"))?;
+        Ok(())
+    }
+    pub fn from_directory<T>(path: T) -> Result<LockSpec, String>
+    where
+        T: AsRef<Path> + std::fmt::Debug
+    {
+        let ls = LockSpec{
+            lockfile: path.as_ref().join("pixi.lock"),
+            specfile: path.as_ref().join("pixi.toml"),
+        };
+
+        if ls.files_exist() {
+            Ok(ls)
+        } else {
+            Err(format!("No lockspec files found in {:?}", path))
+        }
+    }
+    pub fn from_env_name(name: &str) -> Result<LockSpec, String> {
+        let env_dir = get_default_araki_envs_dir()?.join(name);
+        let ls = LockSpec{
+            lockfile: env_dir.join("pixi.lock"),
+            specfile: env_dir.join("pixi.toml"),
+        };
+        if ls.files_exist() {
+            Ok(ls)
+        } else {
+            Err(format!("No environment named '{name}' exists in {env_dir:?}."))
+        }
+    }
+
+    pub fn files_exist(&self) -> bool {
+        self.lockfile.exists() && self.specfile.exists()
     }
 }

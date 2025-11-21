@@ -1,11 +1,11 @@
 use clap::Parser;
-use std::env::{current_dir, temp_dir};
-use std::fs;
-use std::path::Path;
+use std::env::{current_dir};
+use std::fs::hard_link;
+use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
-use uuid::Uuid;
+use std::str::FromStr;
 
-use crate::cli::common;
+use crate::cli::common::{self, LockSpec};
 
 #[derive(Parser, Debug, Default)]
 pub struct Args {
@@ -20,62 +20,114 @@ pub struct Args {
 
 /// Convert the current environment into an araki-managed environment.
 ///
-/// 1. Ensure the user's araki envs dir exists
-/// 2.
+/// 1. Ensure the user's araki `envs_dir` exists; create it if needed
+/// 2. If the requested environment doesn't exist in the envs_dir, move it there
+/// 3. Hardlink pixi.lock and pixi.toml to the target path
 ///
 /// * `args`:
 pub fn execute(args: Args) {
     println!("initializing env: {:?}", &args.name);
 
-    // Get the araki envs dir
+    // Get the araki `envs_dir`, current working directory, environment name, and target path
+    // for the environment
     let araki_envs_dir = common::get_default_araki_envs_dir().unwrap_or_else(|err| {
         eprintln!("Error getting the araki environment directory.\nReason: {err}");
         exit(1);
     });
-    let env_name = args.name.unwrap_or_else(|| {
-        current_dir()
-            .unwrap_or_else(|_| {
-                eprintln!("Unable to get the current directory.");
+    let cwd = current_dir()
+        .unwrap_or_else(|_| {
+            eprintln!("Unable to get the current directory.");
+            exit(1);
+        });
+    let path = args.path
+        .map(|p| {
+            PathBuf::from_str(&p).unwrap_or_else(|_| {
+                eprintln!("{p} is not a valid path.");
                 exit(1);
             })
-            .file_name()
-            .unwrap_or_else(|| {
-                eprintln!("Unable to get the basename of the current directory.");
+        })
+        .unwrap_or(cwd);
+
+    // let env_name = args.name.unwrap_or_else(|| {
+    //     cwd
+    //         .file_name()
+    //         .unwrap_or_else(|| {
+    //             eprintln!("Unable to get the basename of the current directory.");
+    //             exit(1);
+    //         })
+    //         .to_string_lossy()
+    //         .to_string()
+    // });
+
+    if let Ok(path_lockspec) = LockSpec::from_directory(&path) {
+        if let Some(env_name) = args.name {
+            // Path has lockspec, and env name is specified
+            if let Ok(env_lockspec) = LockSpec::from_env_name(&env_name) {
+                eprintln!("{path:?} already contains a lockspec. To modify the {env_name} \
+                    environment, use `araki push` and `araki pull`");
+            } else {
+                println!("Creating new environment {env_name} using existing environment \
+                    at {path:?}");
+                let env_path = araki_envs_dir.join(env_name);
+                path_lockspec.hardlink_to(&env_path).map_err(|err| {
+                    eprintln!("Hardlinking lockspec files at {path:?} to {env_path:?} failed.\n\
+                        Reason: {err}")
+                });
                 exit(1);
-            })
-            .to_string_lossy()
-            .to_string()
-    });
+            }
+        } else {
+            // Path has lockspec, but no env name is given
+            let env_name = args.name.unwrap_or_else(|| {
+                cwd
+                    .file_name()
+                    .unwrap_or_else(|| {
+                        eprintln!("Unable to get the basename of the current directory");
+                        exit(1);
+                    })
+                    .to_string_lossy()
+                    .to_string()
+            });
+            if let Ok(env_lockspec) = LockSpec::from_env_name(&env_name) {
 
-    // Check if the project already exists. If it does, exit
-    let project_env_dir = araki_envs_dir.join(&env_name);
-    if project_env_dir.exists() {
-        println!("Using existing environment {env_name}");
 
-        // insert hardlinks here
+                // TODO check if env_lockspec is the same as path_lockspec
 
-        eprintln!(
-            "Environment {:?} already exists! {project_env_dir:?}",
-            &args.name
-        );
-        exit(1);
-    }
 
-    // Since initializing the env repository can fail in a number of different ways,
-    // we clone into a temporary directory first. If that's successful, we then move it to the
-    // target directory.
-    let temp_path = temp_dir().join(Uuid::new_v4().to_string());
-    if let Err(err) = fs::create_dir_all(&temp_path) {
-        eprintln!("Unable to initialize the repote repository at {temp_path:?}. Reason: {err}",);
-        exit(1);
-    }
-    if let Some(src) = args.repository {
-        initialize_remote_git_project(src, &temp_path);
+                eprintln!("Existing lockspec files found at {path:?}. No environment name \
+                    specified, and an existing environment named {env_name} already exists. \
+                    To modify the {env_name} environment, use `araki push` and `araki pull`.
+                    ");
+                exit(1);
+            } else {
+                println!("Creating new environment {env_name} from {path:?}")
+            }
+        }
+
+
+
+        // let env_name = args.name.unwrap_or_else(|| {
+        //     cwd
+        //         .file_name()
+        //         .unwrap_or_else(|| {
+        //             eprintln!("Unable to get the basename of the current directory.");
+        //             exit(1);
+        //         })
+        //         .to_string_lossy()
+        //         .to_string()
+        // });
+
+    } else if let lockspec = LockSpec::from_env_name(&env_name) {
+
     } else {
-        initialize_empty_project(&temp_path);
-    }
-    if common::copy_directory(&temp_path, &project_env_dir).is_err() {
-        eprintln!("Error writing environment to {project_env_dir:?}");
+        if args.name.is_some() {
+            eprintln!("No lockspec exists in {path:?}, and no environment named {env_name} \
+                exists. Specify either an existing environment to use, or a path containing a \
+                lockspec to create a new environment.");
+        } else {
+            eprintln!("No lockspec exists in {path:?}, and no environment can be found with the \
+                current working directory name ({env_name}). Specify either an existing \
+                environment to use, or a path containing a lockspec to create a new environment.");
+        }
         exit(1);
     }
 }
@@ -139,5 +191,3 @@ pub fn initialize_empty_project(project_env_dir: &Path) {
         .status()
         .expect("Failed to execute command");
 }
-
-fn hardlink_lockspec(env_dir: &Path, path: &Path) {}

@@ -100,10 +100,6 @@ pub fn execute(args: Args) {
     let target_toml = cwd.join("pixi.toml");
     let target_lock = cwd.join("pixi.lock");
 
-    let temp_path = temp_dir().join(Uuid::new_v4().to_string());
-    let tmp_toml = temp_path.as_path().join("pixi.toml");
-    let tmp_lock = temp_path.as_path().join("pixi.lock");
-
     // Check that the target directory is free of pixi.lock and pixi.toml
     if exists(&target_toml).is_err() {
         eprintln!("{target_toml:?} already exists. Aborting.");
@@ -125,6 +121,12 @@ pub fn execute(args: Args) {
         }
     };
 
+    // Since initializing the env repository can fail in a number of different ways,
+    // we clone into a temporary directory first. If that's successful, we then move it to the
+    // target directory.
+    let temp_path = temp_dir().join(Uuid::new_v4().to_string());
+    let tmp_toml = temp_path.as_path().join("pixi.toml");
+    let tmp_lock = temp_path.as_path().join("pixi.lock");
     let _ = common::git_clone(remote.as_ssh_url(), &temp_path).map_err(|err| {
         eprintln!("Unable to clone the environment.\nReason: {err}");
         process::exit(1);
