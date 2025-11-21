@@ -55,7 +55,7 @@ impl Display for RemoteRepo {
     }
 }
 
-/// Clone the given environment URL
+/// Clone the given environment URL.
 ///
 /// * `env`: Remote URL for an environment. If only <org>/<repo> is passed, the repository is
 ///   assumed to live on github.
@@ -94,7 +94,7 @@ pub fn execute(args: Args) {
         Ok(dir) => dir,
         Err(_) => {
             eprintln!("Could not get the current directory.");
-            return;
+            process::exit(1);
         }
     };
     let target_toml = cwd.join("pixi.toml");
@@ -107,11 +107,11 @@ pub fn execute(args: Args) {
     // Check that the target directory is free of pixi.lock and pixi.toml
     if exists(&target_toml).is_err() {
         eprintln!("{target_toml:?} already exists. Aborting.");
-        return;
+        process::exit(1);
     }
     if exists(&target_lock).is_err() {
         eprintln!("{target_lock:?} already exists. Aborting.");
-        return;
+        process::exit(1);
     }
 
     let remote = match parse_repo_arg(&args.env) {

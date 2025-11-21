@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::env::temp_dir;
+use std::env::{current_dir, temp_dir};
 use std::fs;
 use std::path::Path;
 use std::process::{Command, exit};
@@ -9,15 +9,21 @@ use crate::cli::common;
 
 #[derive(Parser, Debug, Default)]
 pub struct Args {
-    /// Name of the environment
+    /// Name of the environment. If unspecified, the current directory name is used
     #[arg()]
-    name: String,
+    name: Option<String>,
 
-    /// Remote repository to pull environment from
-    #[arg(long)]
-    repository: Option<String>,
+    /// Path to the directory to intialize
+    #[arg()]
+    path: Option<String>,
 }
 
+/// Convert the current environment into an araki-managed environment.
+///
+/// 1. Ensure the user's araki envs dir exists
+/// 2.
+///
+/// * `args`:
 pub fn execute(args: Args) {
     println!("initializing env: {:?}", &args.name);
 
@@ -26,10 +32,28 @@ pub fn execute(args: Args) {
         eprintln!("Error getting the araki environment directory.\nReason: {err}");
         exit(1);
     });
+    let env_name = args.name.unwrap_or_else(|| {
+        current_dir()
+            .unwrap_or_else(|_| {
+                eprintln!("Unable to get the current directory.");
+                exit(1);
+            })
+            .file_name()
+            .unwrap_or_else(|| {
+                eprintln!("Unable to get the basename of the current directory.");
+                exit(1);
+            })
+            .to_string_lossy()
+            .to_string()
+    });
 
     // Check if the project already exists. If it does, exit
-    let project_env_dir = araki_envs_dir.join(&args.name);
+    let project_env_dir = araki_envs_dir.join(&env_name);
     if project_env_dir.exists() {
+        println!("Using existing environment {env_name}");
+
+        // insert hardlinks here
+
         eprintln!(
             "Environment {:?} already exists! {project_env_dir:?}",
             &args.name
@@ -50,14 +74,14 @@ pub fn execute(args: Args) {
     } else {
         initialize_empty_project(&temp_path);
     }
-    if fs::copy(&temp_path, &project_env_dir).is_err() {
+    if common::copy_directory(&temp_path, &project_env_dir).is_err() {
         eprintln!("Error writing environment to {project_env_dir:?}");
         exit(1);
     }
 }
 
 pub fn initialize_remote_git_project(repo: String, project_env_dir: &Path) {
-    println!("Pulling from remote repository '{}'", repo);
+    println!("Pulling from remote repository: {repo:?}");
     let _ = common::git_clone(repo, project_env_dir).map_err(|err| {
         eprintln!("{err}");
         exit(1);
@@ -115,3 +139,5 @@ pub fn initialize_empty_project(project_env_dir: &Path) {
         .status()
         .expect("Failed to execute command");
 }
+
+fn hardlink_lockspec(env_dir: &Path, path: &Path) {}
