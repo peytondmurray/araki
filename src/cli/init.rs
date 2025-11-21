@@ -22,10 +22,10 @@ pub fn execute(args: Args) {
     println!("initializing env: {:?}", &args.name);
 
     // Get the araki envs dir
-    let Some(araki_envs_dir) = common::get_default_araki_envs_dir() else {
-        println!("error!");
-        return;
-    };
+    let araki_envs_dir = common::get_default_araki_envs_dir().unwrap_or_else(|err| {
+        eprintln!("Error getting the araki environment directory.\nReason: {err}");
+        exit(1);
+    });
 
     // Check if the project already exists. If it does, exit
     let project_env_dir = araki_envs_dir.join(&args.name);
@@ -34,7 +34,7 @@ pub fn execute(args: Args) {
             "Environment {:?} already exists! {project_env_dir:?}",
             &args.name
         );
-        return;
+        exit(1);
     }
 
     // Since initializing the env repository can fail in a number of different ways,
@@ -50,7 +50,7 @@ pub fn execute(args: Args) {
     } else {
         initialize_empty_project(&temp_path);
     }
-    if fs::rename(&temp_path, &project_env_dir).is_err() {
+    if fs::copy(&temp_path, &project_env_dir).is_err() {
         eprintln!("Error writing environment to {project_env_dir:?}");
         exit(1);
     }

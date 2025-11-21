@@ -42,7 +42,7 @@ pub enum Command {
     /// Pull a lockspec from a remote and install it in the current directory
     Get(get::Args),
 
-    /// Initialize an environment
+    /// Convert an existing environment to be managed by araki
     Init(init::Args),
 
     /// List available tags
