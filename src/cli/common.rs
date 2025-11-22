@@ -1,29 +1,31 @@
 use directories::UserDirs;
+use fs::OpenOptions;
 use git2::build::RepoBuilder;
 use git2::{Cred, FetchOptions, RemoteCallbacks};
+use std::fmt::Display;
 use std::fs;
+use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use toml::Table;
 
 pub const ARAKI_ENVS_DIR: &str = ".araki/envs";
 pub const ARAKI_BIN_DIR: &str = ".araki/bin";
 
 /// Get the user's araki envs directory, which by default
 /// is placed in their home directory
-pub fn get_default_araki_envs_dir() -> Option<PathBuf> {
-    let Some(araki_envs_dir) = UserDirs::new().map(|dirs| dirs.home_dir().join(ARAKI_ENVS_DIR))
-    else {
-        return UserDirs::new().map(|dirs| dirs.home_dir().join(ARAKI_ENVS_DIR));
-    };
+pub fn get_default_araki_envs_dir() -> Result<PathBuf, String> {
+    let envs_dir = UserDirs::new()
+        .ok_or("Could not get user directory to store araki environments.")?
+        .home_dir()
+        .join(ARAKI_ENVS_DIR);
 
-    if !araki_envs_dir.exists() {
-        println!(
-            "araki envs dir does not exist. Creating it at {:?}",
-            araki_envs_dir
-        );
-        let _ = fs::create_dir_all(araki_envs_dir);
+    if !envs_dir.exists() {
+        println!("araki envs dir does not exist. Creating it at {envs_dir:?}");
+        fs::create_dir_all(&envs_dir).map_err(|err| {
+            format!("Could not create an environment directory at {envs_dir:?}.\nReason: {err}")
+        })?;
     }
-
-    UserDirs::new().map(|dirs| dirs.home_dir().join(ARAKI_ENVS_DIR))
+    Ok(envs_dir)
 }
 
 pub fn get_default_araki_bin_dir() -> Result<PathBuf, String> {
@@ -85,4 +87,192 @@ pub fn git_clone(repo: String, path: &Path) -> Result<(), String> {
         .clone(&repo, path)
         .map_err(|err| format!("Failed to clone {repo}. Reason: {err}"))?;
     Ok(())
+}
+
+/// Copy a directory recursively.
+///
+/// If a problem is encountered during copying, the partially-copied directory
+/// will be removed.
+///
+/// * `from`: Path to be copied
+/// * `to`: Destination of the copied directory
+pub fn copy_directory(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
+    if !from.is_dir() {
+        return Err(Error::new(
+            ErrorKind::NotADirectory,
+            format!("{from:?} is not a directory"),
+        ));
+    }
+
+    if to.exists() {
+        return Err(Error::new(
+            ErrorKind::AlreadyExists,
+            format!("{to:?} already exists"),
+        ));
+    }
+
+    fs::create_dir_all(to)?;
+    for item in fs::read_dir(from)? {
+        let entry = match item {
+            Ok(e) => e,
+            Err(ref err) => {
+                fs::remove_dir_all(to)?;
+                return Err(Error::other(format!(
+                    "Error reading {item:?}.\nReason: {err}"
+                )));
+            }
+        };
+        if copy_fs_obj(from, &to.join(entry.file_name())).is_err() {
+            // Clean up the new directory
+            if to.is_dir() {
+                fs::remove_dir_all(to)?;
+            }
+            return Err(Error::other(format!(
+                "Unknown issue copying {from:?} to {to:?}."
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Copy a filesystem object from one place to another.
+///
+/// Directories are copied recursively.
+///
+/// * `from`: Path to be copied
+/// * `to`: Destination of the copied object
+fn copy_fs_obj(from: &PathBuf, to: &Path) -> std::io::Result<()> {
+    let Some(name) = from.file_name() else {
+        return Err(Error::other(format!("Can't get filename of {from:?}")));
+    };
+
+    if from.is_dir() {
+        copy_directory(from, &to.join(name))
+    } else {
+        let _ = fs::copy(from, to.join(name));
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct LockSpec {
+    pub path: PathBuf,
+}
+
+impl Display for LockSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "(Lockfile: {:?}, Specfile: {:?})",
+            self.lockfile(),
+            self.specfile()
+        )
+    }
+}
+
+impl LockSpec {
+    pub fn specfile(&self) -> PathBuf {
+        self.path.join("pixi.toml")
+    }
+    pub fn lockfile(&self) -> PathBuf {
+        self.path.join("pixi.lock")
+    }
+    pub fn hardlink_to(&self, to: &Path) -> Result<(), std::io::Error> {
+        let to_path = to.join("pixi.lock");
+        fs::hard_link(self.lockfile(), &to_path)?;
+        if let Err(err) = fs::hard_link(self.specfile(), to.join("pixi.toml")) {
+            match fs::remove_file(&to_path) {
+                Ok(_) => (),
+                Err(e) if e.kind() == ErrorKind::NotFound => (),
+                Err(e) => {
+                    eprintln!("Failed to clean up {to_path:?}: {e}.");
+                }
+            }
+            return Err(err);
+        };
+        Ok(())
+    }
+    pub fn from_directory<T>(path: T) -> Result<LockSpec, String>
+    where
+        T: AsRef<Path> + std::fmt::Debug,
+    {
+        let ls = LockSpec {
+            path: path.as_ref().to_path_buf(),
+        };
+
+        if ls.files_exist() {
+            Ok(ls)
+        } else {
+            Err(format!("No lockspec files found in {:?}", path))
+        }
+    }
+    pub fn from_env_name(name: &str) -> Result<LockSpec, String> {
+        let env_dir = get_default_araki_envs_dir()?.join(name);
+        let ls = LockSpec {
+            path: env_dir.clone(),
+        };
+        if ls.files_exist() {
+            Ok(ls)
+        } else {
+            Err(format!(
+                "No environment named '{name}' exists in {env_dir:?}."
+            ))
+        }
+    }
+    pub fn files_exist(&self) -> bool {
+        self.lockfile().exists() && self.specfile().exists()
+    }
+    pub fn ensure_araki_metadata(&self, lockspec_name: &str) -> Result<(), String> {
+        let specfile = self.specfile();
+
+        let file = std::fs::read_to_string(&specfile)
+            .map_err(|_| format!("Unable to read file {specfile:?}"))?;
+
+        let mut toml_data: Table = file
+            .parse()
+            .map_err(|err| format!("Unable to parse {specfile:?} as valid toml.\nReason: {err}"))?;
+
+        if toml_data.get("araki").is_none() {
+            let mut araki_table = Table::new();
+            araki_table.insert("lockspec_name".to_string(), lockspec_name.into());
+            toml_data.insert("araki".to_string(), toml::Value::Table(araki_table));
+
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&specfile)
+                .map_err(|err| {
+                    format!(
+                        "Unable to open araki config at {specfile:?} for writing.\nReason: {err}"
+                    )
+                })?;
+            file.write_all(toml_data.to_string().as_bytes())
+                .map_err(|err| {
+                    format!("Unable to write araki config to {specfile:?}.\nReason: {err}")
+                })?;
+        }
+        Ok(())
+    }
+    pub fn remove_lockspec_and_parent_dir(&self) -> Result<(), String> {
+        match fs::remove_dir_all(&self.path) {
+            Ok(_) => (),
+            Err(e) if e.kind() == ErrorKind::NotFound => (),
+            Err(e) => return Err(format!("Unable to remove {:?}: {e}", self.path)),
+        }
+        Ok(())
+    }
+    pub fn remove_files(&self) -> Result<(), String> {
+        match fs::remove_file(self.specfile()) {
+            Ok(_) => (),
+            Err(e) if e.kind() == ErrorKind::NotFound => (),
+            Err(e) => return Err(e.to_string()),
+        }
+        match fs::remove_file(self.lockfile()) {
+            Ok(_) => (),
+            Err(e) if e.kind() == ErrorKind::NotFound => (),
+            Err(e) => return Err(e.to_string()),
+        }
+        Ok(())
+    }
 }

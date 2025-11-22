@@ -12,7 +12,7 @@ pub struct Args {
 
 pub fn execute(args: Args) {
     // Get the araki envs dir
-    let Some(araki_envs_dir) = common::get_default_araki_envs_dir() else {
+    let Ok(araki_envs_dir) = common::get_default_araki_envs_dir() else {
         println!("error!");
         return;
     };

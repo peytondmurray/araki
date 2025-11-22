@@ -1,6 +1,11 @@
-use std::{env::current_dir, fmt::Display, fs::exists, process};
+use std::{
+    env::current_dir,
+    fmt::Display,
+    fs::{exists, remove_dir_all},
+    process,
+};
 
-use crate::cli::common;
+use crate::cli::common::{self, LockSpec};
 use clap::Parser;
 use regex::Regex;
 
@@ -24,10 +29,10 @@ impl RemoteRepo {
     fn as_url(&self) -> String {
         format!(
             "{}{}/{}/{}",
-            self.protocol.clone().unwrap_or("https://".into()),
-            self.domain.clone().unwrap_or("github.com".into()),
-            self.org.clone().unwrap_or("openteams-ai".into()),
-            self.repo
+            self.get_protocol(),
+            self.get_domain(),
+            self.get_org(),
+            self.get_repo(),
         )
     }
 
@@ -35,10 +40,23 @@ impl RemoteRepo {
     fn as_ssh_url(&self) -> String {
         format!(
             "git@{}:{}/{}.git",
-            self.domain.clone().unwrap_or("github.com".into()),
-            self.org.clone().unwrap_or("openteams-ai".into()),
-            self.repo
+            self.get_domain(),
+            self.get_org(),
+            self.get_repo(),
         )
+    }
+
+    fn get_org(&self) -> String {
+        self.org.clone().unwrap_or("openteams-ai".into())
+    }
+    fn get_repo(&self) -> String {
+        self.repo.clone()
+    }
+    fn get_protocol(&self) -> String {
+        self.protocol.clone().unwrap_or("https://".into())
+    }
+    fn get_domain(&self) -> String {
+        self.domain.clone().unwrap_or("github.com".into())
     }
 }
 
@@ -80,13 +98,13 @@ fn parse_repo_arg(env: &str) -> Result<RemoteRepo, String> {
 
 pub fn execute(args: Args) {
     let cwd = current_dir().unwrap_or_else(|err| {
-        eprintln!("Could not get the current directory.\nReason: {err}");
+        eprintln!("Could not get the current directory: {err}");
         process::exit(1);
     });
     let target_toml = cwd.join("pixi.toml");
     let target_lock = cwd.join("pixi.lock");
 
-    // Check that the target directory is free of pixi.lock and pixi.toml
+    // Check that the target directory has no existing lockspec pixi.lock and pixi.toml
     if exists(&target_toml).is_err() {
         eprintln!("{target_toml:?} already exists. Aborting.");
         process::exit(1);
@@ -96,21 +114,78 @@ pub fn execute(args: Args) {
         process::exit(1);
     }
     let remote = parse_repo_arg(&args.env).unwrap_or_else(|err| {
-        eprintln!(
-            "Could not fetch a repository from {}.\nReason: {err}",
-            &args.env
-        );
+        eprintln!("Could not fetch a repository from {}: {err}", &args.env);
         process::exit(1);
     });
-    let envs_dir = common::get_default_araki_envs_dir().unwrap_or_else(|| {
+    let envs_dir = common::get_default_araki_envs_dir().unwrap_or_else(|_| {
         eprintln!("Could not get the default araki environment directory.");
         process::exit(1);
     });
 
     // Clone the repository to the araki environments directory
     common::git_clone(remote.as_ssh_url(), &envs_dir).unwrap_or_else(|err| {
-        eprintln!("Unable to clone the environment.\nReason: {err}");
+        eprintln!("Unable to clone the environment: {err}");
         process::exit(1);
     });
-    todo!("Hardlink the lockspec from the env dir to the specified path, or to the CWD");
+
+    let lockspec = LockSpec::from_env_name(&remote.repo).unwrap_or_else(|_| {
+        eprintln!(
+            "Unable to get the lockspec for the newly cloned environment. Is pixi.toml or \
+            pixi.lock missing from {}/{} ?",
+            remote.get_org(),
+            remote.get_repo()
+        );
+
+        let env_dir = envs_dir.join(&remote.repo);
+        match remove_dir_all(&env_dir) {
+            Ok(_) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (),
+            Err(e) => {
+                eprintln!("Unable to remove {:?}: {e}", &env_dir);
+            }
+        }
+        process::exit(1);
+    });
+
+    lockspec.hardlink_to(&cwd).unwrap_or_else(|err| {
+        eprintln!("Unable to hardlink {lockspec} to {cwd:?}. Aborting: {err}");
+        lockspec
+            .remove_lockspec_and_parent_dir()
+            .unwrap_or_else(|rmerr| {
+                eprintln!(
+                    "Unable to remove environment at {:?}: {rmerr}",
+                    lockspec.path
+                );
+            });
+        process::exit(1);
+    });
+
+    // Install the pixi project
+    let _ = process::Command::new("pixi")
+        .arg("install")
+        .current_dir(&cwd)
+        .status()
+        .unwrap_or_else(|err| {
+            eprintln!("Failed to install the environment with pixi. Aborting: {err}");
+            lockspec
+                .remove_lockspec_and_parent_dir()
+                .unwrap_or_else(|rmerr| {
+                    eprintln!(
+                        "Unable to remove environment at {:?}: {rmerr}",
+                        lockspec.path
+                    );
+                });
+
+            match LockSpec::from_directory(&cwd) {
+                Ok(env_lockspec) => {
+                    env_lockspec.remove_files().unwrap_or_else(|rmerr| {
+                        eprintln!("Unable to clean up the lockspec in {cwd:?}: {rmerr}")
+                    });
+                }
+                Err(othererr) => {
+                    eprintln!("Unable to clean up the lockspec in {cwd:?}: {othererr}")
+                }
+            };
+            process::exit(1);
+        });
 }
