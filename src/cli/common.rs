@@ -1,10 +1,12 @@
 use directories::UserDirs;
+use fs::OpenOptions;
 use git2::build::RepoBuilder;
 use git2::{Cred, FetchOptions, RemoteCallbacks};
 use std::fmt::Display;
 use std::fs;
-use std::io::{Error, ErrorKind};
+use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
+use toml::Table;
 
 pub const ARAKI_ENVS_DIR: &str = ".araki/envs";
 pub const ARAKI_BIN_DIR: &str = ".araki/bin";
@@ -156,7 +158,11 @@ pub struct LockSpec {
 
 impl Display for LockSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "(Lockfile: {:?}, Specfile: {:?})", self.lockfile, self.specfile)
+        write!(
+            f,
+            "(Lockfile: {:?}, Specfile: {:?})",
+            self.lockfile, self.specfile
+        )
     }
 }
 
@@ -169,9 +175,9 @@ impl LockSpec {
     }
     pub fn from_directory<T>(path: T) -> Result<LockSpec, String>
     where
-        T: AsRef<Path> + std::fmt::Debug
+        T: AsRef<Path> + std::fmt::Debug,
     {
-        let ls = LockSpec{
+        let ls = LockSpec {
             lockfile: path.as_ref().join("pixi.lock"),
             specfile: path.as_ref().join("pixi.toml"),
         };
@@ -184,18 +190,48 @@ impl LockSpec {
     }
     pub fn from_env_name(name: &str) -> Result<LockSpec, String> {
         let env_dir = get_default_araki_envs_dir()?.join(name);
-        let ls = LockSpec{
+        let ls = LockSpec {
             lockfile: env_dir.join("pixi.lock"),
             specfile: env_dir.join("pixi.toml"),
         };
         if ls.files_exist() {
             Ok(ls)
         } else {
-            Err(format!("No environment named '{name}' exists in {env_dir:?}."))
+            Err(format!(
+                "No environment named '{name}' exists in {env_dir:?}."
+            ))
         }
     }
-
     pub fn files_exist(&self) -> bool {
         self.lockfile.exists() && self.specfile.exists()
+    }
+    pub fn ensure_araki_metadata(&self, name: &str) -> Result<(), String> {
+        let fname = self.specfile.to_string_lossy();
+        let file = std::fs::read_to_string(&self.specfile)
+            .map_err(|_| format!("Unable to read file {fname}"))?;
+
+        let mut toml_data: Table = file
+            .parse()
+            .map_err(|err| format!("Unable to parse {fname} as valid toml.\nReason: {err}"))?;
+
+        if toml_data.get("araki").is_none() {
+            let mut araki_table = Table::new();
+            araki_table.insert("lockspec_name".to_string(), name.into());
+            toml_data.insert("araki".to_string(), toml::Value::Table(araki_table));
+
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(fname.as_ref())
+                .map_err(|err| {
+                    format!("Unable to open araki config at {fname} for writing.\nReason: {err}")
+                })?;
+            file.write_all(&toml_data.to_string().as_bytes())
+                .map_err(|err| {
+                    format!("Unable to write araki config to {fname}.\nReason: {err}")
+                })?;
+        }
+        Ok(())
     }
 }
