@@ -15,13 +15,13 @@ pub const ARAKI_BIN_DIR: &str = ".araki/bin";
 /// is placed in their home directory
 pub fn get_default_araki_envs_dir() -> Result<PathBuf, String> {
     let envs_dir = UserDirs::new()
-        .ok_or_else(|| "Could not get user directory to store araki environments.")?
+        .ok_or("Could not get user directory to store araki environments.")?
         .home_dir()
         .join(ARAKI_ENVS_DIR);
 
     if !envs_dir.exists() {
         println!("araki envs dir does not exist. Creating it at {envs_dir:?}");
-        let _ = fs::create_dir_all(&envs_dir).map_err(|err| {
+        fs::create_dir_all(&envs_dir).map_err(|err| {
             format!("Could not create an environment directory at {envs_dir:?}.\nReason: {err}")
         })?;
     }
@@ -114,15 +114,14 @@ pub fn copy_directory(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
     fs::create_dir_all(to)?;
     for item in fs::read_dir(from)? {
         let entry = item?;
-        if copy_fs_obj(&from, &to.join(&entry.file_name())).is_err() {
+        if copy_fs_obj(from, &to.join(entry.file_name())).is_err() {
             // Clean up the new directory
             if to.is_dir() {
-                fs::remove_dir_all(to);
+                fs::remove_dir_all(to)?;
             }
-            return Err(Error::new(
-                ErrorKind::Other,
-                format!("Unknown issue copying {from:?} to {to:?}."),
-            ));
+            return Err(Error::other(format!(
+                "Unknown issue copying {from:?} to {to:?}."
+            )));
         }
     }
     Ok(())
@@ -134,18 +133,15 @@ pub fn copy_directory(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
 ///
 /// * `from`: Path to be copied
 /// * `to`: Destination of the copied object
-fn copy_fs_obj(from: &PathBuf, to: &PathBuf) -> std::io::Result<()> {
+fn copy_fs_obj(from: &PathBuf, to: &Path) -> std::io::Result<()> {
     let Some(name) = from.file_name() else {
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!("Can't get filename of {from:?}"),
-        ));
+        return Err(Error::other(format!("Can't get filename of {from:?}")));
     };
 
     if from.is_dir() {
-        copy_directory(&from, &to.join(&name))
+        copy_directory(from, &to.join(name))
     } else {
-        let _ = fs::copy(&from, &to.join(&name));
+        let _ = fs::copy(from, to.join(name));
         Ok(())
     }
 }
@@ -227,7 +223,7 @@ impl LockSpec {
                 .map_err(|err| {
                     format!("Unable to open araki config at {fname} for writing.\nReason: {err}")
                 })?;
-            file.write_all(&toml_data.to_string().as_bytes())
+            file.write_all(toml_data.to_string().as_bytes())
                 .map_err(|err| {
                     format!("Unable to write araki config to {fname}.\nReason: {err}")
                 })?;

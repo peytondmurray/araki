@@ -3,8 +3,54 @@ use std::env::current_dir;
 use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 use std::str::FromStr;
+use std::{fmt, fs};
 
 use crate::cli::common::{self, LockSpec};
+
+#[derive(Debug, Clone)]
+pub struct InitError {
+    env_path: Option<PathBuf>,
+    message: String,
+}
+
+impl InitError {
+    fn new<T>(p: Option<&PathBuf>, s: T) -> Self
+    where
+        T: ToString,
+    {
+        Self {
+            env_path: p.map(|res| res.to_path_buf()),
+            message: s.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for InitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl From<&str> for InitError {
+    fn from(value: &str) -> Self {
+        Self::new(None, value)
+    }
+}
+
+impl From<String> for InitError {
+    fn from(value: String) -> Self {
+        Self::new(None, value)
+    }
+}
+
+impl<T> From<(&PathBuf, T)> for InitError
+where
+    T: ToString,
+{
+    fn from((env_path, message): (&PathBuf, T)) -> Self {
+        Self::new(Some(env_path), message)
+    }
+}
 
 #[derive(Parser, Debug, Default)]
 pub struct Args {
@@ -44,53 +90,78 @@ pub fn execute(args: Args) {
     } else {
         use_existing_araki_env(&path, args.name)
     };
-    result.inspect_err(|err| {
+    let _ = result.inspect_err(|err| {
+        // Delete any araki environment directory if the error specifies such a path to clean up
         eprintln!("{err:?}");
+        if let Some(env_path) = &err.env_path {
+            let _ = fs::remove_dir_all(env_path).map_err(|fserr| {
+                eprintln!("Error cleaning up {env_path:?}.\nReason: {fserr}");
+            });
+        }
         exit(1);
     });
 }
 
-pub fn make_new_araki_env(path: &Path, name: Option<String>) -> Result<(), String> {
+pub fn make_new_araki_env(path: &Path, name: Option<String>) -> Result<(), InitError> {
     let cwd = current_dir().map_err(|_| "Unable to get the current directory.")?;
     let env_name = name
         .or_else(|| cwd.file_name().map(|p| p.to_string_lossy().to_string()))
-        .ok_or_else(|| {
-            format!(
-                "No environment name specified, and unable to get the basename of the \
-                current directory to infer the new environment name. Aborting."
-            )
-        })?;
+        .ok_or(
+            "No environment name specified, and unable to get the basename of the \
+            current directory to infer the new environment name. Aborting.",
+        )?;
 
     if let Ok(_existing_env) = LockSpec::from_env_name(&env_name) {
-        Err(format!(
+        return Err(format!(
             "An environment with the name {env_name} already exists. \
-                Please specify a new name."
-        ))
+                    Please specify a new name."
+        )
+        .into());
     } else {
         let env_path = common::get_default_araki_envs_dir()
             .map_err(|err| {
                 format!("Error getting the araki environment directory.\nReason: {err}")
             })?
             .join(&env_name);
+        fs::create_dir(&env_path).map_err(|err| {
+            format!("Error creating the araki environment directory.\nReason: {err}")
+        })?;
 
-        let path_lockspec = LockSpec::from_directory(&path)?;
+        let path_lockspec = LockSpec::from_directory(path).map_err(|err| (&env_path, err))?;
 
         println!("Creating new environment {env_name} using existing environment at {path:?}");
         path_lockspec.hardlink_to(&env_path).map_err(|err| {
-            format!(
-                "Hardlinking lockspec files at {path:?} to {env_path:?} failed.\n\
-                Reason: {err}"
+            (
+                &env_path,
+                format!(
+                    "Hardlinking lockspec files at {path:?} to {env_path:?} failed.\n\
+                    Reason: {err}"
+                ),
             )
         })?;
-        path_lockspec.ensure_araki_metadata(&env_name)
+        path_lockspec
+            .ensure_araki_metadata(&env_name)
+            .map_err(|err| (&env_path, err))?;
+
+        let _ = Command::new("pixi")
+            .args(["install", "--frozen", "--locked"])
+            .current_dir(path)
+            .output()
+            .map_err(|err| {
+                (
+                    &env_path,
+                    format!("Error running `pixi install --frozen --locked`.\nReason: {err}"),
+                )
+            })?;
     }
+    Ok(())
 }
 
 /// Use an existing araki environment in the given path.
 ///
 /// * `path`: Path for which an araki environment is to be used
 /// * `name`: Name of the environment to use
-pub fn use_existing_araki_env(path: &Path, name: Option<String>) -> Result<(), String> {
+pub fn use_existing_araki_env(path: &Path, name: Option<String>) -> Result<(), InitError> {
     let env_name = name.ok_or_else(|| {
         format!(
             "No existing environment name was passed with which to initialize \
@@ -106,17 +177,15 @@ pub fn use_existing_araki_env(path: &Path, name: Option<String>) -> Result<(), S
             })?
             .join(&env_name);
 
-        env_lockspec.hardlink_to(&path).map_err(|err| {
+        env_lockspec.hardlink_to(path).map_err(|err| {
             format!(
                 "Hardlinking lockspec files at {env_path:?} to {path:?} failed.\n\
                 Reason: {err}"
-            );
-        });
+            )
+        })?;
         Ok(())
     } else {
-        Err(format!(
-            "No environment by the name {env_name} exists. Aborting."
-        ))
+        Err(format!("No environment by the name {env_name} exists. Aborting.").into())
     }
 }
 
