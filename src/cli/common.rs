@@ -43,6 +43,27 @@ pub fn get_default_araki_bin_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+pub fn get_local_envs() -> Result<Vec<String>, String> {
+    let envs_dir = get_default_araki_envs_dir()?;
+
+    let mut ret = Vec::new();
+    for entry in fs::read_dir(&envs_dir).map_err(|err| format!("Can't read {envs_dir:?}: {err}"))? {
+        let fsobj = match entry {
+            Ok(ref item) => item,
+            Err(ref e) => return Err(format!("Can't read item {entry:?}: {e}")),
+        };
+        ret.push(
+            fsobj
+                .path()
+                .file_name()
+                .ok_or_else(|| format!("Can't get the basename of {entry:?}."))?
+                .to_string_lossy()
+                .to_string(),
+        );
+    }
+    Ok(ret)
+}
+
 /// Clone a git repo to a path.
 ///
 /// * `repo`: URL of a git repo to clone
@@ -161,12 +182,7 @@ pub struct LockSpec {
 
 impl Display for LockSpec {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "(Lockfile: {:?}, Specfile: {:?})",
-            self.lockfile(),
-            self.specfile()
-        )
+        write!(f, "lockspec: {:?}", self.path)
     }
 }
 
