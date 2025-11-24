@@ -13,6 +13,7 @@ use crate::cli::shell;
 use crate::cli::shim;
 use crate::cli::tag;
 
+pub mod backends;
 pub mod cli;
 
 /// Manage and share environments
@@ -42,7 +43,7 @@ pub enum Command {
     /// Pull a lockspec from a remote and install it in the current directory
     Get(get::Args),
 
-    /// Initialize an environment
+    /// Initialize a new environment
     Init(init::Args),
 
     /// List available tags
@@ -66,7 +67,8 @@ pub enum Command {
     Tag(tag::Args),
 }
 
-pub fn main() {
+#[tokio::main]
+pub async fn main() {
     let cli = Cli::parse();
 
     if let Some(cmd) = cli.command {

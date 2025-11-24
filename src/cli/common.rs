@@ -43,6 +43,8 @@ pub fn get_default_araki_bin_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+pub fn get_remote_envs() -> Result<Vec<String>, String> {}
+
 pub fn get_local_envs() -> Result<Vec<String>, String> {
     let envs_dir = get_default_araki_envs_dir()?;
 

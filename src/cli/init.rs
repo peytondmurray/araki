@@ -5,6 +5,7 @@ use std::path::Path;
 use std::process::{Command, exit};
 use uuid::Uuid;
 
+use crate::backends::{Backend, GitHubBackend};
 use crate::cli::common;
 
 #[derive(Parser, Debug, Default)]
@@ -13,47 +14,69 @@ pub struct Args {
     #[arg()]
     name: String,
 
-    /// Remote repository to pull environment from
+    /// Path to the directory in which the environment should be initialized
     #[arg(long)]
-    repository: Option<String>,
+    path: Option<String>,
 }
 
-pub fn execute(args: Args) {
+pub async fn execute(args: Args) {
     println!("initializing env: {:?}", &args.name);
 
-    // Get the araki envs dir
-    let Ok(araki_envs_dir) = common::get_default_araki_envs_dir() else {
-        println!("error!");
-        return;
-    };
-
-    // Check if the project already exists. If it does, exit
-    let project_env_dir = araki_envs_dir.join(&args.name);
-    if project_env_dir.exists() {
-        eprintln!(
-            "Environment {:?} already exists! {project_env_dir:?}",
+    // Check if the lockspec exists locally, exit if it does
+    let envs_dir = common::get_default_araki_envs_dir().unwrap_or_else(|err| {
+        eprintln!("Could not get the default araki environment directory: {err}");
+        exit(1);
+    });
+    let env_dir = envs_dir.join(&args.name);
+    if env_dir.exists() {
+        println!(
+            "Environment {:?} already exists at {env_dir:?}.",
             &args.name
         );
         return;
     }
 
-    // Since initializing the env repository can fail in a number of different ways,
-    // we clone into a temporary directory first. If that's successful, we then move it to the
-    // target directory.
-    let temp_path = temp_dir().join(Uuid::new_v4().to_string());
-    if let Err(err) = fs::create_dir_all(&temp_path) {
-        eprintln!("Unable to initialize the repote repository at {temp_path:?}. Reason: {err}",);
+    // Check if the lockspec exists remotely, exit if it does
+    let org = "openteams-ai";
+    let backend = GitHubBackend::new().unwrap_or_else(|err| {
+        eprintln!("Unable to query the git server to check for remote lockspecs: {err}");
+        exit(1);
+    });
+    if backend
+        .is_existing_lockspec(org.to_string(), args.name.to_string())
+        .await
+        .unwrap_or_else(|err| {
+            eprintln!("Error checking if this lockspec exists on the remote: {err}");
+            exit(1);
+        })
+    {
+        eprintln!(
+            "Environment {:?} already exists on the remote environment repository. \
+                Try cloning it with `araki get {org}/{}`",
+            &args.name, &args.name
+        );
         exit(1);
     }
-    if let Some(src) = args.repository {
-        initialize_remote_git_project(src, &temp_path);
-    } else {
-        initialize_empty_project(&temp_path);
-    }
-    if fs::rename(&temp_path, &project_env_dir).is_err() {
-        eprintln!("Error writing environment to {project_env_dir:?}");
-        exit(1);
-    }
+
+    // // We start by checking if the name of the repo is already taken.
+    //
+    // // Since initializing the env repository can fail in a number of different ways,
+    // // we clone into a temporary directory first. If that's successful, we then move it to the
+    // // target directory.
+    // let temp_path = temp_dir().join(Uuid::new_v4().to_string());
+    // if let Err(err) = fs::create_dir_all(&temp_path) {
+    //     eprintln!("Unable to initialize the repote repository at {temp_path:?}. Reason: {err}",);
+    //     exit(1);
+    // }
+    // if let Some(src) = args.repository {
+    //     initialize_remote_git_project(src, &temp_path);
+    // } else {
+    //     initialize_empty_project(&temp_path);
+    // }
+    // if fs::rename(&temp_path, &env_dir).is_err() {
+    //     eprintln!("Error writing environment to {env_dir:?}");
+    //     exit(1);
+    // }
 }
 
 pub fn initialize_remote_git_project(repo: String, project_env_dir: &Path) {
