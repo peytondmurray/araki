@@ -8,6 +8,8 @@ use std::io::{Error, ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use toml::Table;
 
+use crate::backends::{Backend, GitHubBackend};
+
 pub const ARAKI_ENVS_DIR: &str = ".araki/envs";
 pub const ARAKI_BIN_DIR: &str = ".araki/bin";
 
@@ -293,4 +295,8 @@ impl LockSpec {
         }
         Ok(())
     }
+}
+
+pub fn get_backend() -> Box<dyn Backend> {
+    Box::new(GitHubBackend::new())
 }

@@ -1,9 +1,6 @@
 use clap::Parser;
-use std::env::temp_dir;
-use std::fs;
 use std::path::Path;
 use std::process::{Command, exit};
-use uuid::Uuid;
 
 use crate::backends::{Backend, GitHubBackend};
 use crate::cli::common;
