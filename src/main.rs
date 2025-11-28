@@ -12,6 +12,7 @@ use crate::cli::shim;
 use crate::cli::tag;
 
 pub mod cli;
+pub mod backends;
 
 /// Manage and share environments
 #[derive(Parser, Debug)]
@@ -58,7 +59,8 @@ pub enum Command {
     Tag(tag::Args),
 }
 
-pub fn main() {
+#[tokio::main]
+pub async fn main() {
     let cli = Cli::parse();
 
     if let Some(cmd) = cli.command {
