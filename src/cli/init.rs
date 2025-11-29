@@ -78,11 +78,10 @@ pub async fn execute(args: Args) {
     // Clone the repository to the target directory. This also creates a .araki-git for tracking
     // lockspec git versions
     println!(
-        "{} Cloning lockspec repository...",
+        "{} Cloning lockspec repository to {path:?}...",
         style("[2/4]").bold().dim(),
     );
-    let remote_url = backend.get_repo_info(ORG, &args.name).as_ssh_url();
-    common::git_clone(remote_url.clone(), &path)
+    common::git_clone(backend.get_repo_info(ORG, &args.name).as_ssh_url(), &path)
         .unwrap_or_else(|err| {
             eprintln!("Failed to clone the repository: {err}");
             exit(1);
@@ -126,30 +125,14 @@ pub async fn execute(args: Args) {
         exit(1);
     });
 
-    let head = repo.head().unwrap_or_else(|err| {
-        eprintln!("Unable to get the head commit: {err}");
-        exit(1);
-    });
-    let parent = repo.find_commit(
-        head
-            .target()
-            .unwrap_or_else(|| {
-                eprintln!("Unable to get the OID of the HEAD commit.");
-                exit(1);
-            })
-    ).unwrap_or_else(|err| {
-        eprintln!("Unable to get the parent commit: {err}");
-        exit(1);
-    });
-
     repo
         .commit(
-            Some("HEAD"),
+            None,
             &author,
             &author,
             &args.message.unwrap_or("Initial commit".to_string()),
             &new_tree,
-            &[&parent],
+            &[],
         )
         .unwrap_or_else(|err| {
             eprintln!("Error committing changes: {err}");
@@ -161,16 +144,10 @@ pub async fn execute(args: Args) {
         "{} Pushing changes to remote...",
         style("[4/4]").bold().dim(),
     );
-    let mut origin = repo.remote("origin", &remote_url).unwrap_or_else(|err| {
-        eprintln!("Unable to push lockspec changes to remote: {err}");
+    common::git_push("origin", "main").unwrap_or_else(|err| {
+        eprintln!("Unable to push to remote: {err}");
         exit(1);
     });
-    origin
-        .push(&["main"], None)
-        .unwrap_or_else(|err| {
-            eprintln!("Failed to push changes to remote: {err}");
-            exit(1);
-        });
     println!("Lockspec changes pushed to remote.");
     println!("Done in {}", HumanDuration(started.elapsed()));
 }
