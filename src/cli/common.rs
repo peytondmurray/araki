@@ -67,7 +67,7 @@ pub fn get_default_araki_bin_dir() -> Result<PathBuf, String> {
 /// environment variables.
 ///
 /// Additionally modify `.gitignore` to ignore `.araki-git/` so that it doesn't get treated as
-/// a regular file.
+/// a regular file, as well as `pixi.lock` and `pixi.toml`
 ///
 /// * `repo`: URL of a git repo to clone
 /// * `path`: Path where the repo should be cloned
@@ -107,8 +107,10 @@ pub fn git_clone(repo: String, path: &Path) -> Result<(), String> {
             .open(&gitignore)
             .map_err(|err| format!("Unable to open to {gitignore:?}: {err}"))?;
 
-        writeln!(file, ".araki-git/")
-            .map_err(|err| format!("Unable to write to {gitignore:?}: {err}"))?;
+        for item in [".araki-git/", "pixi.lock", "pixi.toml"] {
+            writeln!(file, "{}", item)
+                .map_err(|err| format!("Unable to write to {gitignore:?}: {err}"))?;
+        }
     }
 
     Ok(())
