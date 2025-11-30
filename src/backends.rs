@@ -1,8 +1,8 @@
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use reqwest::{RequestBuilder, Url};
-use std::{collections::HashMap, env};
+use serde::{Deserialize, Serialize};
 use std::error::Error;
+use std::{collections::HashMap, env};
 
 use reqwest::{Client, header};
 
@@ -34,24 +34,12 @@ pub type BackendError = Box<dyn Error + Send + Sync>;
 #[async_trait]
 impl Backend for GitHubBackend {
     fn get(&self, path: &str) -> Result<RequestBuilder, BackendError> {
-        Ok(
-            self
-                .client
-                .get(self.api_url.join(path)?)
-        )
+        Ok(self.client.get(self.api_url.join(path)?))
     }
     fn post(&self, path: &str) -> Result<RequestBuilder, BackendError> {
-        Ok(
-            self
-                .client
-                .post(self.api_url.join(path)?)
-        )
+        Ok(self.client.post(self.api_url.join(path)?))
     }
-    async fn is_existing_lockspec(
-        &self,
-        org: &str,
-        name: &str,
-    ) -> Result<bool, BackendError> {
+    async fn is_existing_lockspec(&self, org: &str, name: &str) -> Result<bool, BackendError> {
         let resp = self
             .get(format!("/repos/{org}/{name}").as_str())?
             .send()
@@ -91,13 +79,9 @@ impl Backend for GitHubBackend {
 impl GitHubBackend {
     pub fn new() -> Result<Self, BackendError> {
         let token = env::var_os("GITHUB_TOKEN")
-            .ok_or(
-                "No GITHUB_TOKEN found in the environment. Aborting."
-            )?
+            .ok_or("No GITHUB_TOKEN found in the environment. Aborting.")?
             .into_string()
-            .map_err(|err| {
-                format!("Couldn't convert GITHUB_TOKEN to a string: {err:?}")
-            })?;
+            .map_err(|err| format!("Couldn't convert GITHUB_TOKEN to a string: {err:?}"))?;
         let mut headers = header::HeaderMap::new();
         headers.insert(
             "Accept",
@@ -105,18 +89,13 @@ impl GitHubBackend {
         );
         headers.insert(
             "Authorization",
-            header::HeaderValue::from_str(
-                format!("Bearer {}", token.trim()).as_str()
-            )?,
+            header::HeaderValue::from_str(format!("Bearer {}", token.trim()).as_str())?,
         );
         headers.insert(
             "X-GitHub-Api-Version",
             header::HeaderValue::from_static("2022-11-28"),
         );
-        headers.insert(
-            "User-Agent",
-            header::HeaderValue::from_static("araki"),
-        );
+        headers.insert("User-Agent", header::HeaderValue::from_static("araki"));
 
         Ok(Self {
             api_url: Url::parse("https://api.github.com/")?,

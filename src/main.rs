@@ -11,8 +11,8 @@ use crate::cli::shell;
 use crate::cli::shim;
 use crate::cli::tag;
 
-pub mod cli;
 pub mod backends;
+pub mod cli;
 
 /// Manage and share environments
 #[derive(Parser, Debug)]

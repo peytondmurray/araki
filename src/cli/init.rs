@@ -1,15 +1,14 @@
 use clap::Parser;
-use indicatif::HumanDuration;
-use std::time::Instant;
 use console::style;
+use indicatif::HumanDuration;
 use std::env::current_dir;
 use std::path::{Path, PathBuf};
-use std::process::{exit};
+use std::process::exit;
 use std::str::FromStr;
+use std::time::Instant;
 
-use crate::cli::common;
 use crate::backends::{self, Backend};
-
+use crate::cli::common;
 
 const ORG: &str = "openteams-ai";
 
@@ -20,7 +19,7 @@ pub struct Args {
     name: String,
 
     /// Commit message
-    #[arg(short, long, value_name="MESSAGE")]
+    #[arg(short, long, value_name = "MESSAGE")]
     message: Option<String>,
 
     /// Path to the target directory
@@ -57,11 +56,10 @@ pub async fn execute(args: Args) {
     }
 
     // Create a new respository
-    let backend = backends::get_current_backend()
-        .unwrap_or_else(|err| {
-            eprintln!("Unable to get the current backend: {err}");
-            exit(1);
-        });
+    let backend = backends::get_current_backend().unwrap_or_else(|err| {
+        eprintln!("Unable to get the current backend: {err}");
+        exit(1);
+    });
     println!(
         "{} Creating lockspec repository at {}...",
         style("[1/4]").bold().dim(),
@@ -73,8 +71,7 @@ pub async fn execute(args: Args) {
         .unwrap_or_else(|err| {
             eprintln!(
                 "Error creating a new repository '{}' for organization '{}': {err}",
-                args.name,
-                ORG,
+                args.name, ORG,
             );
             exit(1);
         });
@@ -85,17 +82,15 @@ pub async fn execute(args: Args) {
         "{} Cloning lockspec repository to {path_str}...",
         style("[2/4]").bold().dim(),
     );
-    common::git_clone(backend.get_repo_info(ORG, &args.name).as_ssh_url(), &path)
-        .unwrap_or_else(|err| {
+    common::git_clone(backend.get_repo_info(ORG, &args.name).as_ssh_url(), &path).unwrap_or_else(
+        |err| {
             eprintln!("Failed to clone the repository: {err}");
             exit(1);
-        });
+        },
+    );
 
     // Commit the lockspec as a new change
-    println!(
-        "{} Committing lockspec...",
-        style("[3/4]").bold().dim(),
-    );
+    println!("{} Committing lockspec...", style("[3/4]").bold().dim(),);
     let repo = common::get_araki_git_repo().unwrap_or_else(|err| {
         eprintln!("Couldn't recognize the araki repo: {err}");
         exit(1);
@@ -145,13 +140,11 @@ pub async fn execute(args: Args) {
     let branch = repo
         .branch(
             "main",
-            &repo
-                .find_commit(commit_oid)
-                .unwrap_or_else(|err| {
-                    eprintln!("Unable to find the new commit: {err}");
-                    exit(1);
-                }),
-            true
+            &repo.find_commit(commit_oid).unwrap_or_else(|err| {
+                eprintln!("Unable to find the new commit: {err}");
+                exit(1);
+            }),
+            true,
         )
         .unwrap_or_else(|err| {
             eprintln!("Unable to generate a main branch with the new commit: {err}");

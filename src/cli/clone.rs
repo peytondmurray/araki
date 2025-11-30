@@ -37,7 +37,12 @@ impl RemoteRepo {
         domain: Option<String>,
         protocol: Option<String>,
     ) -> RemoteRepo {
-        RemoteRepo {org, repo, domain, protocol}
+        RemoteRepo {
+            org,
+            repo,
+            domain,
+            protocol,
+        }
     }
     /// Render the repository as a git url
     pub fn as_url(&self) -> String {

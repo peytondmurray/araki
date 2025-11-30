@@ -154,9 +154,8 @@ pub fn git_push(remote: &str, branch: &str) -> Result<(), git2::Error> {
 
     let mut push_options = PushOptions::new();
     push_options.remote_callbacks(callbacks);
-    let repo = get_araki_git_repo().map_err(|err| {
-        git2::Error::from_str(format!("{err}").as_str())
-    })?;
+    let repo =
+        get_araki_git_repo().map_err(|err| git2::Error::from_str(format!("{err}").as_str()))?;
     let mut origin = repo.find_remote(remote)?;
     origin.push(&[format!("refs/heads/{branch}")], Some(&mut push_options))?;
     Ok(())
