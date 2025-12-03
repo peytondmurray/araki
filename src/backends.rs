@@ -144,7 +144,7 @@ struct GitHubDeviceCodeResponse {
 }
 
 impl GitHubBackend {
-    const CLIENT_ID: &str = "Ov23linBvMCnaKWY4CBz"; // araki-cli-app
+    const CLIENT_ID: &str = "Ov23liFxqmYL2jVV2QZ0"; // araki OAuth app
 
     /// Create a new set of authenticated headers.
     ///

@@ -66,7 +66,7 @@ impl RemoteRepo {
     }
 
     fn get_org(&self) -> String {
-        self.org.clone().unwrap_or("openteams-ai".into())
+        self.org.clone().unwrap_or("nos-environments".into())
     }
     fn get_repo(&self) -> String {
         self.repo.clone()
