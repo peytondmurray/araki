@@ -55,6 +55,11 @@ pub async fn execute(args: Args) {
         exit(1);
     }
 
+    // Ensure the project has a pixi.toml and pixi.lock
+    if common::LockSpec::from_path(&path).is_err() {
+        eprintln!("No lockspec found at {path_str}");
+        exit(1);
+    }
     // Create a new respository
     let backend = backends::get_current_backend().unwrap_or_else(|err| {
         eprintln!("Unable to get the current backend: {err}");
