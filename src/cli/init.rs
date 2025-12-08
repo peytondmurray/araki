@@ -1,4 +1,5 @@
 use clap::Parser;
+use config::Config;
 use console::style;
 use indicatif::HumanDuration;
 use std::env::current_dir;
@@ -30,7 +31,7 @@ pub struct Args {
 // Committing is complicated with libgit2. See
 // https://users.rust-lang.org/t/how-can-i-do-git-add-some-file-rs-git-commit-m-message-git-push-with-git2-crate-on-a-bare-repo/94109/4
 // for the approach used here.
-pub async fn execute(args: Args) {
+pub async fn execute(args: Args, settings: Config) {
     let started = Instant::now();
     let cwd = current_dir().unwrap_or_else(|err| {
         eprintln!("Could not get the current directory: {err}");
@@ -61,7 +62,7 @@ pub async fn execute(args: Args) {
         exit(1);
     }
     // Create a new respository
-    let backend = backends::get_current_backend().unwrap_or_else(|err| {
+    let backend = backends::get_current_backend(settings).unwrap_or_else(|err| {
         eprintln!("Unable to get the current backend: {err}");
         exit(1);
     });

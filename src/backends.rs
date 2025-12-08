@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use config::Config;
 use console::style;
 use reqwest::{ClientBuilder, RequestBuilder, Url};
 use serde::{Deserialize, Serialize};
@@ -299,6 +300,11 @@ impl GitHubBackend {
 }
 
 /// Get the currently configured araki backend.
-pub fn get_current_backend() -> Result<impl Backend, BackendError> {
-    GitHubBackend::new()
+pub fn get_current_backend(settings: Config) -> Result<impl Backend, BackendError> {
+    match settings.get_string("backend")?.to_lowercase().as_str() {
+        "github" => GitHubBackend::new(),
+        other => {
+            Err(format!("{other} is not a valid backend. Please choose one of: ['github']").into())
+        }
+    }
 }

@@ -8,6 +8,7 @@ use std::{
 
 use crate::common::{self, LockSpec};
 use clap::Parser;
+use config::Config;
 use regex::Regex;
 
 #[derive(Parser, Debug, Default)]
@@ -115,7 +116,7 @@ fn parse_repo_arg(env: &str) -> Result<RemoteRepo, String> {
     ))
 }
 
-pub fn execute(args: Args) {
+pub fn execute(args: Args, _settings: Config) {
     let cwd = current_dir().unwrap_or_else(|err| {
         eprintln!("Could not get the current directory: {err}");
         exit(1);

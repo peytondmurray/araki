@@ -1,4 +1,5 @@
 use clap::Parser;
+use config::Config;
 use git2::Tag;
 use std::process::{Command, exit};
 
@@ -10,7 +11,7 @@ pub struct Args {
     tree: bool,
 }
 
-pub fn execute(args: Args) {
+pub fn execute(args: Args, _settings: Config) {
     let repo = common::get_araki_git_repo().unwrap_or_else(|err| {
         eprintln!("Couldn't recognize the araki repo: {err}");
         exit(1);

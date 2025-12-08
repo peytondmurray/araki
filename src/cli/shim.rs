@@ -1,4 +1,5 @@
 use clap::Parser;
+use config::Config;
 use std::env;
 use std::process::{Command, exit};
 
@@ -25,7 +26,7 @@ fn strip_araki_shim_path(path: &str, shim_path: &str) -> Result<String, String> 
         .join(":"))
 }
 
-pub fn execute(args: Args) {
+pub fn execute(args: Args, _settings: Config) {
     let value = env::var("ARAKI_OVERRIDE_SHIM").unwrap_or("false".to_string());
     if value.trim() == "1" {
         // Run the requested command using the modified PATH

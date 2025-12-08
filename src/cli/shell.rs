@@ -1,4 +1,5 @@
 use clap::Parser;
+use config::Config;
 use directories::UserDirs;
 use std::fs::{Permissions, exists, remove_file, set_permissions};
 use std::io::Write;
@@ -186,7 +187,7 @@ impl Shell {
     }
 }
 
-pub fn execute(args: Args) {
+pub fn execute(args: Args, _settings: Config) {
     match args.subcommand {
         ShellSubcommand::Init(shell_arg) => {
             let shell: Shell = shell_arg

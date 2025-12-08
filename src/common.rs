@@ -1,4 +1,4 @@
-use directories::UserDirs;
+use directories::{ProjectDirs, UserDirs};
 use fs::OpenOptions;
 use git2::build::RepoBuilder;
 use git2::{Cred, FetchOptions, PushOptions, RemoteCallbacks, Repository};
@@ -12,6 +12,14 @@ use uuid::Uuid;
 
 pub const ARAKI_DIR: &str = ".araki";
 pub const ARAKI_GIT_DIR_NAME: &str = ".araki-git";
+
+/// Get the project configuration directory object
+pub fn get_project_dir() -> Result<ProjectDirs, Error> {
+    ProjectDirs::from("", "", "araki").ok_or(Error::new(
+        ErrorKind::NotFound,
+        "Cannot get a project configuration directory for araki.",
+    ))
+}
 
 /// Get the git directory used by git for lockspec version control
 pub fn get_araki_git_repo() -> Result<Repository, Error> {

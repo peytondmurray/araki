@@ -1,5 +1,6 @@
 use crate::backends::Backend;
 use clap::Parser;
+use config::Config;
 use std::process::exit;
 
 use crate::backends;
@@ -17,10 +18,10 @@ pub enum AuthSubcommand {
     Login,
 }
 
-pub async fn execute(args: Args) {
+pub async fn execute(args: Args, settings: Config) {
     match args.subcommand {
         AuthSubcommand::Login => {
-            let backend = backends::get_current_backend().unwrap_or_else(|err| {
+            let backend = backends::get_current_backend(settings).unwrap_or_else(|err| {
                 eprintln!("Unable to get the current backend: {err}");
                 exit(1);
             });
