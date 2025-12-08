@@ -301,7 +301,7 @@ impl GitHubBackend {
 
 /// Get the currently configured araki backend.
 pub fn get_current_backend(settings: Config) -> Result<impl Backend, BackendError> {
-    match settings.get_string("backend")?.to_lowercase().as_str() {
+    match settings.get_string("backend")?.to_lowercase().trim() {
         "github" => GitHubBackend::new(),
         other => {
             Err(format!("{other} is not a valid backend. Please choose one of: ['github']").into())
