@@ -184,14 +184,14 @@ impl GitHubBackend {
     }
 
     /// Return the cached token, if possible.
-    /// The token is stored at <araki-cache-dir>/araki-token
+    /// The token is stored at <araki-cache-dir>/github-araki-token
     fn get_cached_token() -> Option<String> {
         fs::read_to_string(Self::get_cached_token_file().ok()?).ok()
     }
 
     /// Get the path to the file where araki caches its backend token
     fn get_cached_token_file() -> Result<PathBuf, BackendError> {
-        Ok(get_araki_cache()?.join("araki-token"))
+        Ok(get_araki_cache()?.join("github-araki-token"))
     }
 
     /// Request a device code to use to initiate authentication with the GH API.
